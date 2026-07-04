@@ -1,0 +1,13 @@
+## .NET
+bin/
+obj/
+out/
+*.user
+
+## Rider / IDE
+.idea/
+.vs/
+
+## NuGet
+*.nupkg
+*.snupkg

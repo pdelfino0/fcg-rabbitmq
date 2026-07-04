@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/FiapCloudGames.RabbitMq/FiapCloudGames.RabbitMq.csproj" />
+  <Project Path="tests/FiapCloudGames.RabbitMq.Tests/FiapCloudGames.RabbitMq.Tests.csproj" />
+</Solution>
