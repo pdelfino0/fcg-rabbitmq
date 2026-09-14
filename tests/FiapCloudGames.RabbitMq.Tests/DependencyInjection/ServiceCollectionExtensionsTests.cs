@@ -16,13 +16,19 @@ public class ServiceCollectionExtensionsTests
 {
     private sealed class FakeProcessorA : IMessageProcessor
     {
-        public Task<MessageProcessingResult> ProcessAsync(ReadOnlyMemory<byte> body, CancellationToken cancellationToken) =>
+        public Task<MessageProcessingResult> ProcessAsync(
+            ReadOnlyMemory<byte> body,
+            IReadOnlyDictionary<string, string?> headers,
+            CancellationToken cancellationToken) =>
             Task.FromResult(MessageProcessingResult.Success);
     }
 
     private sealed class FakeProcessorB : IMessageProcessor
     {
-        public Task<MessageProcessingResult> ProcessAsync(ReadOnlyMemory<byte> body, CancellationToken cancellationToken) =>
+        public Task<MessageProcessingResult> ProcessAsync(
+            ReadOnlyMemory<byte> body,
+            IReadOnlyDictionary<string, string?> headers,
+            CancellationToken cancellationToken) =>
             Task.FromResult(MessageProcessingResult.Success);
     }
 
