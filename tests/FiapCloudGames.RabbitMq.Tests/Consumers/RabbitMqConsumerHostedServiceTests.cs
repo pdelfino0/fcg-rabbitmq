@@ -142,7 +142,7 @@ public class RabbitMqConsumerHostedServiceTests
     public async Task Consumer_WhenProcessorReturnsSuccess_AcksMessage()
     {
         // Arrange
-        _processor.ProcessAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+        _processor.ProcessAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<IReadOnlyDictionary<string, string?>>(), Arg.Any<CancellationToken>())
             .Returns(MessageProcessingResult.Success);
 
         IAsyncBasicConsumer consumer = CaptureConsumer();
@@ -164,7 +164,7 @@ public class RabbitMqConsumerHostedServiceTests
     public async Task Consumer_WhenProcessorReturnsPoisonMessage_NacksWithoutRequeue()
     {
         // Arrange
-        _processor.ProcessAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+        _processor.ProcessAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<IReadOnlyDictionary<string, string?>>(), Arg.Any<CancellationToken>())
             .Returns(MessageProcessingResult.PoisonMessage);
 
         IAsyncBasicConsumer consumer = CaptureConsumer();
@@ -186,7 +186,7 @@ public class RabbitMqConsumerHostedServiceTests
     public async Task Consumer_WhenProcessorReturnsTransientFailure_NacksWithRequeue()
     {
         // Arrange
-        _processor.ProcessAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+        _processor.ProcessAsync(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<IReadOnlyDictionary<string, string?>>(), Arg.Any<CancellationToken>())
             .Returns(MessageProcessingResult.TransientFailure);
 
         IAsyncBasicConsumer consumer = CaptureConsumer();
@@ -201,6 +201,72 @@ public class RabbitMqConsumerHostedServiceTests
 
         // Assert
         await _channel.Received(1).BasicNackAsync(9UL, false, true, Arg.Any<CancellationToken>());
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Consumer_WhenMessageHasHeaders_DeliversThemNormalizedAsStrings()
+    {
+        // Arrange
+        IReadOnlyDictionary<string, string?>? received = null;
+        _processor.ProcessAsync(
+                Arg.Any<ReadOnlyMemory<byte>>(),
+                Arg.Do<IReadOnlyDictionary<string, string?>>(h => received = h),
+                Arg.Any<CancellationToken>())
+            .Returns(MessageProcessingResult.Success);
+
+        // O cliente RabbitMQ devolve strings do AMQP field table como byte[], não como string.
+        var properties = Substitute.For<RabbitMQ.Client.IReadOnlyBasicProperties>();
+        properties.Headers.Returns(new Dictionary<string, object?>
+        {
+            ["traceparent"] = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"u8.ToArray(),
+            ["x-attempt"] = 3
+        });
+
+        IAsyncBasicConsumer consumer = CaptureConsumer();
+        var service = CreateService();
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+        await service.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await consumer.HandleBasicDeliverAsync(
+            "consumer-tag", 1UL, false, _definition.Exchange, _definition.RoutingKey,
+            properties, new byte[] { 1 }, CancellationToken.None);
+
+        // Assert
+        received.Should().NotBeNull();
+        received!["traceparent"].Should().Be("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
+        received["x-attempt"].Should().Be("3");
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Consumer_WhenMessageHasNoHeaders_DeliversEmptyDictionaryNotNull()
+    {
+        // Arrange
+        IReadOnlyDictionary<string, string?>? received = null;
+        _processor.ProcessAsync(
+                Arg.Any<ReadOnlyMemory<byte>>(),
+                Arg.Do<IReadOnlyDictionary<string, string?>>(h => received = h),
+                Arg.Any<CancellationToken>())
+            .Returns(MessageProcessingResult.Success);
+
+        var properties = Substitute.For<RabbitMQ.Client.IReadOnlyBasicProperties>();
+        properties.Headers.Returns((IDictionary<string, object?>?)null);
+
+        IAsyncBasicConsumer consumer = CaptureConsumer();
+        var service = CreateService();
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+        await service.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await consumer.HandleBasicDeliverAsync(
+            "consumer-tag", 2UL, false, _definition.Exchange, _definition.RoutingKey,
+            properties, new byte[] { 1 }, CancellationToken.None);
+
+        // Assert
+        received.Should().NotBeNull();
+        received.Should().BeEmpty();
         await service.StopAsync(CancellationToken.None);
     }
 

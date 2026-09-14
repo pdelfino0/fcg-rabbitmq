@@ -8,7 +8,7 @@
 
         <!-- Metadados do pacote NuGet -->
         <PackageId>FiapCloudGames.RabbitMq</PackageId>
-        <Version>1.0.0</Version>
+        <Version>1.1.0</Version>
         <Authors>FIAP Cloud Games Team</Authors>
         <Description>Infraestrutura de mensageria RabbitMQ opinativa e reutilizável entre os microsserviços do FIAP Cloud Games (publisher, consumidor genérico com ack/nack e configuração).</Description>
         <PackageTags>fcg;rabbitmq;messaging</PackageTags>

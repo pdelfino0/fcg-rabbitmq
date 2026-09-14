@@ -15,7 +15,17 @@ using Consumers;
 public interface IMessageProcessor
 {
     /// <summary>
-    /// Processa o corpo bruto de uma mensagem.
+    /// Processa o corpo bruto de uma mensagem, junto com os headers que vieram com ela.
     /// </summary>
-    Task<MessageProcessingResult> ProcessAsync(ReadOnlyMemory<byte> body, CancellationToken cancellationToken);
+    /// <param name="body">Corpo bruto da mensagem.</param>
+    /// <param name="headers">
+    /// Headers da mensagem, já normalizados para <see cref="string"/> (o AMQP entrega <c>byte[]</c>).
+    /// Nunca é <see langword="null"/>: mensagem sem headers chega como dicionário vazio. As chaves
+    /// são comparadas de forma case-insensitive.
+    /// </param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    Task<MessageProcessingResult> ProcessAsync(
+        ReadOnlyMemory<byte> body,
+        IReadOnlyDictionary<string, string?> headers,
+        CancellationToken cancellationToken);
 }

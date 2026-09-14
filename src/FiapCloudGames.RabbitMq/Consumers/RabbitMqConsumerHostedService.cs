@@ -116,7 +116,8 @@ public partial class RabbitMqConsumerHostedService<TProcessor>(
     {
         try
         {
-            MessageProcessingResult result = await processor.ProcessAsync(args.Body, cancellationToken);
+            IReadOnlyDictionary<string, string?> headers = MessageHeaders.Normalize(args.BasicProperties.Headers);
+            MessageProcessingResult result = await processor.ProcessAsync(args.Body, headers, cancellationToken);
             await AcknowledgeMessageAsync(channel, args.DeliveryTag, result, cancellationToken);
         }
         catch (Exception ex)

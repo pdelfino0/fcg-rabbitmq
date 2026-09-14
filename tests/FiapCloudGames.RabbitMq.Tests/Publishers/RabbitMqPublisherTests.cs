@@ -88,6 +88,94 @@ public class RabbitMqPublisherTests
     }
 
     [Fact]
+    public async Task PublishAsync_WithHeaders_AttachesExactlyThoseHeadersToProperties()
+    {
+        // Arrange
+        var message = new TestEvent(Guid.NewGuid(), "Jane");
+        var headers = new Dictionary<string, object?>
+        {
+            ["traceparent"] = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+            ["x-attempt"] = 3
+        };
+
+        // Act
+        await _publisher.PublishAsync("orders.exchange", "order.placed", message, headers, CancellationToken.None);
+
+        // Assert
+        await _channel.Received(1).BasicPublishAsync(
+            "orders.exchange",
+            "order.placed",
+            false,
+            Arg.Is<BasicProperties>(p =>
+                p.Headers != null
+                && p.Headers.Count == 2
+                && (string)p.Headers["traceparent"]! == "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+                && (int)p.Headers["x-attempt"]! == 3),
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PublishAsync_WithHeaders_DoesNotShareTheCallerDictionaryInstance()
+    {
+        // Arrange
+        var message = new TestEvent(Guid.NewGuid(), "Jane");
+        var headers = new Dictionary<string, object?> { ["traceparent"] = "00-trace-span-01" };
+
+        // Act
+        await _publisher.PublishAsync("orders.exchange", "order.placed", message, headers, CancellationToken.None);
+        headers["traceparent"] = "mutated-after-publish";
+
+        // Assert
+        await _channel.Received(1).BasicPublishAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<bool>(),
+            Arg.Is<BasicProperties>(p => (string)p.Headers!["traceparent"]! == "00-trace-span-01"),
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PublishAsync_WithoutHeaders_LeavesPropertiesWithoutHeaderTable()
+    {
+        // Arrange
+        var message = new TestEvent(Guid.NewGuid(), "Jane");
+
+        // Act
+        await _publisher.PublishAsync("orders.exchange", "order.placed", message, CancellationToken.None);
+
+        // Assert
+        await _channel.Received(1).BasicPublishAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<bool>(),
+            Arg.Is<BasicProperties>(p => p.Headers == null),
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PublishAsync_WithEmptyHeaders_LeavesPropertiesWithoutHeaderTable()
+    {
+        // Arrange
+        var message = new TestEvent(Guid.NewGuid(), "Jane");
+
+        // Act
+        await _publisher.PublishAsync(
+            "orders.exchange", "order.placed", message, new Dictionary<string, object?>(), CancellationToken.None);
+
+        // Assert
+        await _channel.Received(1).BasicPublishAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<bool>(),
+            Arg.Is<BasicProperties>(p => p.Headers == null),
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task PublishAsync_WhenChannelDeclarationFails_PropagatesException()
     {
         // Arrange

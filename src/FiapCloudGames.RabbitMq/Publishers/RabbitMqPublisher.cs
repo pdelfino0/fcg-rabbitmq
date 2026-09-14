@@ -7,7 +7,7 @@ using RabbitMQ.Client;
 /// <summary>
 /// Implementação de <see cref="IRabbitMqPublisher"/>. Mantém uma conexão de longa duração
 /// (canais não são seguros para uso concorrente, então um canal novo é aberto por publicação) e
-/// é segura para chamadas concorrentes de <see cref="PublishAsync{T}"/>.
+/// é segura para chamadas concorrentes de <c>PublishAsync</c>.
 /// </summary>
 public sealed partial class RabbitMqPublisher(
     IConnectionFactory connectionFactory,
@@ -16,7 +16,17 @@ public sealed partial class RabbitMqPublisher(
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private IConnection? _connection;
 
-    public async Task PublishAsync<T>(string exchange, string routingKey, T message, CancellationToken cancellationToken)
+    public Task PublishAsync<T>(string exchange, string routingKey, T message, CancellationToken cancellationToken)
+    {
+        return PublishAsync(exchange, routingKey, message, headers: null, cancellationToken);
+    }
+
+    public async Task PublishAsync<T>(
+        string exchange,
+        string routingKey,
+        T message,
+        IDictionary<string, object?>? headers,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -31,6 +41,12 @@ public sealed partial class RabbitMqPublisher(
                 ContentType = "application/json",
                 DeliveryMode = DeliveryModes.Persistent
             };
+
+            // Mensagem sem header algum não deve ganhar uma tabela de headers vazia nas properties.
+            if (headers is { Count: > 0 })
+            {
+                properties.Headers = new Dictionary<string, object?>(headers);
+            }
 
             await channel.BasicPublishAsync(exchange, routingKey, mandatory: false, properties, body, cancellationToken);
 
